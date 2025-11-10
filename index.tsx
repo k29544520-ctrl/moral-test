@@ -333,8 +333,7 @@ try {
         setIsLoading(false);
         };
         fetchDescriptions();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [combinedScores]);
 
     const chartData = [
         { type: '자신-대상', score: combinedScores.selfObject, fullMark: 80 },

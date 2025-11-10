@@ -82,13 +82,19 @@ const LIKERT_OPTIONS = [
 ];
 
 // --- Services (from services/geminiService.ts) ---
-const API_KEY = process.env.API_KEY;
+let ai: GoogleGenAI | null = null;
+let apiKeyError: string | null = null;
 
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable not set");
+try {
+  const API_KEY = process.env.API_KEY;
+  if (!API_KEY) {
+    throw new Error("API_KEY 환경 변수가 설정되지 않았습니다. 앱이 올바르게 작동하려면 API 키가 필요합니다.");
+  }
+  ai = new GoogleGenAI({ apiKey: API_KEY });
+} catch (e) {
+  console.error(e);
+  apiKeyError = e instanceof Error ? e.message : "알 수 없는 API 키 초기화 오류가 발생했습니다.";
 }
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 const resultSchema = {
     type: Type.OBJECT,
@@ -114,6 +120,18 @@ const resultSchema = {
 };
 
 const generateResultDescriptions = async (scores: CombinedScores): Promise<ResultDescriptions> => {
+    const defaultErrorResult = {
+        selfObject: "결과를 분석하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+        othersObject: "결과를 분석하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+        selfSituation: "결과를 분석하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+        othersSituation: "결과를 분석하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+    };
+
+    if (!ai) {
+        console.error("Gemini AI client is not initialized.");
+        return defaultErrorResult;
+    }
+
     const prompt = `
     다음은 공감 프로필 검사 결과입니다. 각 점수는 16점에서 80점 사이입니다. 점수가 높을수록 해당 영역의 공감 능력이 높다는 것을 의미합니다.
     각 항목에 대해 점수를 기반으로 심리학적 분석 결과를 1~2문장으로, 긍정적이고 격려하는 톤으로 작성해주세요.
@@ -143,12 +161,7 @@ const generateResultDescriptions = async (scores: CombinedScores): Promise<Resul
 
     } catch (error) {
         console.error("Error generating result descriptions:", error);
-        return {
-            selfObject: "결과를 분석하는 중 오류가 발생했습니다. 자신과 주변 사물에 대한 관계를 탐색하는 것은 자기 이해의 중요한 부분입니다.",
-            othersObject: "결과를 분석하는 중 오류가 발생했습니다. 타인과 함께 주변 환경을 아끼는 마음은 공동체 의식의 기반이 됩니다.",
-            selfSituation: "결과를 분석하는 중 오류가 발생했습니다. 다양한 상황 속에서 자신을 이해하는 능력은 성장의 원동력이 됩니다.",
-            othersSituation: "결과를 분석하는 중 오류가 발생했습니다. 복잡한 상황 속에서 타인을 이해하려는 노력은 관계를 더욱 깊게 만듭니다."
-        };
+        return defaultErrorResult;
     }
 };
 
@@ -382,6 +395,25 @@ const ResultsScreen: React.FC<{ scores: Scores; onRetake: () => void; }> = ({ sc
 type AppState = 'start' | 'in-progress' | 'completed';
 
 const App: React.FC = () => {
+  if (apiKeyError) {
+    return (
+        <div className="min-h-screen w-full flex items-center justify-center p-4 bg-red-50">
+            <main className="w-full max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-lg border-2 border-red-300">
+                <h1 className="text-2xl font-bold text-red-800 mb-4">어플리케이션 오류</h1>
+                <p className="text-red-700">
+                    앱을 초기화하는 중 심각한 오류가 발생했습니다.
+                </p>
+                <div className="mt-4 p-4 bg-red-100 text-red-900 rounded">
+                    <strong>오류 메시지:</strong> {apiKeyError}
+                </div>
+                <p className="mt-4 text-gray-600">
+                    이 문제를 해결하려면 환경 설정에서 API 키가 올바르게 구성되었는지 확인하세요.
+                </p>
+            </main>
+        </div>
+    );
+  }
+    
   const [appState, setAppState] = useState<AppState>('start');
   const [finalScores, setFinalScores] = useState<Scores | null>(null);
 
